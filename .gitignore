@@ -1,0 +1,39 @@
+# ============================================
+# FLUTTER / DART
+# ============================================
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# ============================================
+# IDEs
+# ============================================
+.idea/
+*.iml
+.vscode/
+
+# ============================================
+# SEGURIDAD - Firebase
+# ============================================
+firebase_options.dart
+firebase.json
+google-services.json
+GoogleService-Info.plist
+
+# ============================================
+# PLATAFORMAS (innecesarias para revisar código)
+# ============================================
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+
+# ============================================
+# OTROS
+# ============================================
+.metadata
+pubspec.lock
+*.log
