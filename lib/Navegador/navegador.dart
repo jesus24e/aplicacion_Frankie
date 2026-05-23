@@ -38,6 +38,7 @@ class _NavegadorState extends State<Navegador> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(child: _cuerpo),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.shifting,

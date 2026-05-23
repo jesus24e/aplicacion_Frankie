@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import "package:syncfusion_flutter_calendar/calendar.dart";
-import 'package:flutter_colorpicker/flutter_colorpicker.dart'; // añadir en pubspec.yaml
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 class calendar extends StatefulWidget {
   const calendar({super.key, required this.titulo});
@@ -9,184 +9,265 @@ class calendar extends StatefulWidget {
   final String titulo;
 
   @override
-  State<calendar> createState() => _calendarState();
+  State<calendar> createState() => _CalendarState();
 }
 
-class _calendarState extends State<calendar> {
+class _CalendarState extends State<calendar> {
   FirebaseFirestore db = FirebaseFirestore.instance;
+
   final TextEditingController _nombreEvento = TextEditingController();
+
   DateTime _fechaInicio = DateTime.now();
-  DateTime _fechaFin = DateTime.now();
+  DateTime _fechaFin = DateTime.now().add(const Duration(hours: 1));
+
   bool _todoElDia = false;
+
   Color _color = Colors.blue;
 
-  final List<Map> _eventos = [];
+  List<Meeting> _eventos = [];
+
+  late MeetingDataSource _meetingDataSource;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _meetingDataSource = MeetingDataSource(_eventos);
+
+    _leeBase();
+  }
+
+  @override
+  void dispose() {
+    _nombreEvento.dispose();
+    super.dispose();
+  }
 
   void _aniadirEvento() {
+    _nombreEvento.clear();
+
+    _fechaInicio = DateTime.now();
+
+    _fechaFin = DateTime.now().add(const Duration(hours: 1));
+
+    _todoElDia = false;
+
+    _color = Colors.blue;
+
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setStateDialog) {
+          builder: (dialogContext, setStateDialog) {
             return Dialog(
-              elevation: 50,
               backgroundColor: Colors.white,
-              shadowColor: Colors.pink,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text("Añadir evento:", style: TextStyle(fontSize: 30)),
-                    SizedBox(height: 5),
-
-                    SizedBox(
-                      width: 300,
-                      child: TextField(
-                        decoration: InputDecoration(labelText: "Nombre evento"),
-                        controller: _nombreEvento,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Añadir evento",
                         style: TextStyle(fontSize: 25),
                       ),
-                    ),
-                    SizedBox(height: 5),
 
-                    // --- Punto 1: Botones de fecha inicio y fin ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        MaterialButton(
-                          color: Colors.blue,
-                          child: Text(
-                            "Fecha inicio: ${_fechaInicio.day}/${_fechaInicio.month}/${_fechaInicio.year} - ${_fechaInicio.hour}:${_fechaInicio.minute}",
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onPressed: () async {
-                            DateTime? inicio =
-                                await showDatePicker(
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: _nombreEvento,
+                        decoration: const InputDecoration(
+                          labelText: "Nombre evento",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: MaterialButton(
+                              color: Colors.blue,
+                              child: Text(
+                                "Inicio: ${_fechaInicio.day}/${_fechaInicio.month}/${_fechaInicio.year} - ${_fechaInicio.hour}:${_fechaInicio.minute.toString().padLeft(2, '0')}",
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              onPressed: () async {
+                                final fecha = await showDatePicker(
                                   context: context,
                                   initialDate: _fechaInicio,
                                   firstDate: DateTime(2000),
                                   lastDate: DateTime(2100),
-                                ).then((inicio) async {
-                                  if (inicio != null) {
-                                    await showTimePicker(
-                                      context: context,
-                                      initialTime: TimeOfDay.now(),
-                                    ).then((hora) {
-                                      if (hora != null) {
-                                        setStateDialog(() {
-                                          _fechaInicio = inicio.add(
-                                            Duration(
-                                              hours: hora.hour,
-                                              minutes: hora.minute,
-                                            ),
-                                          );
-                                        });
-                                      }
+                                );
+
+                                if (fecha != null) {
+                                  final hora = await showTimePicker(
+                                    context: context,
+                                    initialTime: TimeOfDay.fromDateTime(
+                                      _fechaInicio,
+                                    ),
+                                  );
+
+                                  if (hora != null) {
+                                    setStateDialog(() {
+                                      _fechaInicio = DateTime(
+                                        fecha.year,
+                                        fecha.month,
+                                        fecha.day,
+                                        hora.hour,
+                                        hora.minute,
+                                      );
                                     });
                                   }
-                                });
-                          },
-                        ),
-                        SizedBox(width: 10),
-                        MaterialButton(
-                          color: Colors.blue,
-                          child: Text(
-                            "Fecha fin: ${_fechaFin.day}/${_fechaFin.month}/${_fechaFin.year} - ${_fechaFin.hour}:${_fechaFin.minute}",
-                            style: TextStyle(color: Colors.white),
+                                }
+                              },
+                            ),
                           ),
-                          onPressed: () async {
-                            DateTime? fin =
-                                await showDatePicker(
+
+                          const SizedBox(width: 10),
+
+                          Flexible(
+                            child: MaterialButton(
+                              color: Colors.blue,
+                              child: Text(
+                                "Fin: ${_fechaFin.day}/${_fechaFin.month}/${_fechaFin.year} - ${_fechaFin.hour}:${_fechaFin.minute.toString().padLeft(2, '0')}",
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              onPressed: () async {
+                                final fecha = await showDatePicker(
                                   context: context,
                                   initialDate: _fechaFin,
                                   firstDate: DateTime(2000),
                                   lastDate: DateTime(2100),
-                                ).then((fin) async {
-                                  if (fin != null) {
-                                    await showTimePicker(
-                                      context: context,
-                                      initialTime: TimeOfDay.now(),
-                                    ).then((hora) {
-                                      if (hora != null) {
-                                        setStateDialog(() {
-                                          _fechaFin = fin.add(
-                                            Duration(
-                                              hours: hora.hour,
-                                              minutes: hora.minute,
-                                            ),
-                                          );
-                                        });
-                                      }
+                                );
+
+                                if (fecha != null) {
+                                  final hora = await showTimePicker(
+                                    context: context,
+                                    initialTime: TimeOfDay.fromDateTime(
+                                      _fechaFin,
+                                    ),
+                                  );
+
+                                  if (hora != null) {
+                                    setStateDialog(() {
+                                      _fechaFin = DateTime(
+                                        fecha.year,
+                                        fecha.month,
+                                        fecha.day,
+                                        hora.hour,
+                                        hora.minute,
+                                      );
                                     });
                                   }
-                                });
-                          },
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 5),
-
-                    // --- Punto 2: Botón color picker ---
-                    MaterialButton(
-                      color: _color,
-                      child: Text(
-                        "Seleccionar color",
-                        style: TextStyle(color: Colors.white),
+                                }
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: Text("Elige un color"),
-                              content: BlockPicker(
-                                pickerColor: _color,
-                                onColorChanged: (color) {
-                                  setStateDialog(() {
-                                    _color = color;
-                                  });
-                                  Navigator.of(context).pop();
-                                },
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                    SizedBox(height: 5),
 
-                    // --- Punto 3: Checkbox con setStateDialog ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text("Es todo el dia: "),
-                        SizedBox(height: 5),
-                        Checkbox(
-                          value: _todoElDia,
-                          onChanged: (value) {
-                            setStateDialog(() {
-                              _todoElDia = !_todoElDia;
-                            });
-                          },
+                      const SizedBox(height: 15),
+
+                      MaterialButton(
+                        color: _color,
+                        child: const Text(
+                          "Seleccionar color",
+                          style: TextStyle(color: Colors.white),
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 5),
-                    MaterialButton(
-                      onPressed: () {
-                        Map<String, dynamic> evento = {};
-                        evento["Nombre"] = _nombreEvento.text;
-                        evento["TodoElDia"] = _todoElDia;
-                        evento["FechaInicio"] = _fechaInicio;
-                        evento["FechaFin"] = _fechaFin;
-                        evento["Color"] = _color.value;
+                        onPressed: () async {
+                          Color colorTemporal = _color;
 
-                        _escribirEventoNube(evento);
-                      },
-                      color: Colors.green,
-                      child: Text("Guardar"),
-                    ),
-                  ],
+                          await showDialog(
+                            context: context,
+                            builder: (_) {
+                              return AlertDialog(
+                                title: const Text("Selecciona color"),
+                                content: BlockPicker(
+                                  pickerColor: _color,
+                                  onColorChanged: (color) {
+                                    colorTemporal = color;
+                                  },
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                    },
+                                    child: const Text("Aceptar"),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          setStateDialog(() {
+                            _color = colorTemporal;
+                          });
+                        },
+                      ),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Todo el día"),
+                          Checkbox(
+                            value: _todoElDia,
+                            onChanged: (value) {
+                              setStateDialog(() {
+                                _todoElDia = value ?? false;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          MaterialButton(
+                            color: Colors.red,
+                            child: const Text(
+                              "Cancelar",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            onPressed: () => Navigator.pop(dialogContext),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          MaterialButton(
+                            color: Colors.green,
+                            child: const Text(
+                              "Guardar",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            onPressed: () async {
+                              if (_nombreEvento.text.trim().isEmpty) {
+                                return;
+                              }
+
+                              final evento = {
+                                "Nombre": _nombreEvento.text.trim(),
+                                "FechaInicio": _fechaInicio,
+                                "FechaFin": _fechaFin,
+                                "Color": _color.value,
+                                "TodoElDia": _todoElDia,
+                              };
+
+                              Navigator.pop(dialogContext);
+                              await _escribirEventoNube(evento);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -196,27 +277,44 @@ class _calendarState extends State<calendar> {
     );
   }
 
-  void _leeBase() async {
-    QuerySnapshot<Map<String, dynamic>> docs = await db
-        .collection("eventos")
-        .get();
-    for (int i = 0; i < docs.size; i++) {
-      Map<String, dynamic> aux = {};
-      aux["Nombre"] = docs.docs[i].get("Nombre");
-      aux["FechaInicio"] = docs.docs[i].get("FechaInicio").toDate();
-      aux["FechaFin"] = docs.docs[i].get("FechaFin").toDate();
-      aux["Color"] = Color(docs.docs[i].get("Color"));
-      aux["TodoElDia"] = docs.docs[i].get("TodoElDia");
+  Future<void> _leeBase() async {
+    try {
+      QuerySnapshot<Map<String, dynamic>> docs = await db
+          .collection("eventos")
+          .get();
 
-      setState(() {
-        _eventos.add(aux);
-      });
+      _eventos.clear();
+
+      for (int i = 0; i < docs.size; i++) {
+        _eventos.add(
+          Meeting(
+            docs.docs[i].get("Nombre"),
+            (docs.docs[i].get("FechaInicio") as Timestamp).toDate(),
+            (docs.docs[i].get("FechaFin") as Timestamp).toDate(),
+            Color(docs.docs[i].get("Color")),
+            docs.docs[i].get("TodoElDia"),
+          ),
+        );
+      }
+
+      _meetingDataSource.appointments = _eventos;
+
+      _meetingDataSource.notifyListeners(
+        CalendarDataSourceAction.reset,
+        _eventos,
+      );
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print("Error leyendo eventos: $e");
     }
   }
 
-  void _escribirEventoNube(Map<String, dynamic> evento) async {
+  Future<void> _escribirEventoNube(Map<String, dynamic> evento) async {
     try {
-      await db.collection("eventos").doc(evento["Nombre"]).set({
+      await db.collection("eventos").add({
         "Nombre": evento["Nombre"],
         "FechaInicio": Timestamp.fromDate(evento["FechaInicio"]),
         "FechaFin": Timestamp.fromDate(evento["FechaFin"]),
@@ -224,59 +322,65 @@ class _calendarState extends State<calendar> {
         "TodoElDia": evento["TodoElDia"],
       });
 
+      final nuevoEvento = Meeting(
+        evento["Nombre"],
+        evento["FechaInicio"],
+        evento["FechaFin"],
+        Color(evento["Color"]),
+        evento["TodoElDia"],
+      );
+
+      _eventos.add(nuevoEvento);
+
+      _meetingDataSource.appointments!.add(nuevoEvento);
+
+      _meetingDataSource.notifyListeners(CalendarDataSourceAction.add, [
+        nuevoEvento,
+      ]);
+
+      if (mounted) {
+        setState(() {});
+      }
+
       print("Evento guardado correctamente");
     } catch (e) {
-      print("Error al escribir evento: $e");
+      print("Error escribiendo evento: $e");
     }
-  }
-
-  @override
-  void initState() {
-    _leeBase();
-    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SfCalendar(
         view: CalendarView.month,
-        dataSource: MeetingDataSource(_getDataSource(_eventos)),
+        dataSource: _meetingDataSource,
         monthViewSettings: const MonthViewSettings(
           appointmentDisplayMode: MonthAppointmentDisplayMode.appointment,
           showAgenda: true,
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _aniadirEvento();
-        },
-        tooltip: "añadir evento",
-        child: Icon(Icons.add),
+        onPressed: _aniadirEvento,
+        child: const Icon(Icons.add),
       ),
     );
-  }
-
-  List<Meeting> _getDataSource(List<Map> eventos) {
-    final List<Meeting> meetings = <Meeting>[];
-    for (var i = 0; i < eventos.length; i++) {
-      meetings.add(
-        Meeting(
-          eventos[i]["Nombre"],
-          eventos[i]["FechaInicio"],
-          eventos[i]["FechaFin"],
-          eventos[i]["Color"],
-          eventos[i]["TodoElDia"],
-        ),
-      );
-    }
-    return meetings;
   }
 }
 
 class MeetingDataSource extends CalendarDataSource {
   MeetingDataSource(List<Meeting> source) {
     appointments = source;
+  }
+
+  Meeting _getMeetingData(int index) {
+    final dynamic meeting = appointments![index];
+
+    if (meeting is Meeting) {
+      return meeting;
+    }
+
+    throw Exception("Tipo inválido");
   }
 
   @override
@@ -303,23 +407,18 @@ class MeetingDataSource extends CalendarDataSource {
   bool isAllDay(int index) {
     return _getMeetingData(index).isAllDay;
   }
-
-  Meeting _getMeetingData(int index) {
-    final dynamic meeting = appointments![index];
-    late final Meeting meetingData;
-    if (meeting is Meeting) {
-      meetingData = meeting;
-    }
-    return meetingData;
-  }
 }
 
 class Meeting {
   Meeting(this.eventName, this.from, this.to, this.background, this.isAllDay);
 
   String eventName;
+
   DateTime from;
+
   DateTime to;
+
   Color background;
+
   bool isAllDay;
 }
